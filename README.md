@@ -95,7 +95,7 @@ Explicit config always takes precedence over environment variables.
 If `TENANT_ID` is set, the package automatically adds a `{"tenant", value}` header to both trace and log exports:
 
 ```
-TENANT_ID=riello_it
+TENANT_ID=tenant_id_value
 ```
 
 The header is merged with any existing headers and won't override an explicit `tenant` header.

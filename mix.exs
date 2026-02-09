@@ -32,8 +32,8 @@ defmodule ArkeOpentelemetryEx.MixProject do
 
   defp package do
     [
-      maintainers: ["Arke"],
-      licenses: ["Apache-2.0"],
+      maintainers: ["Arkemis Labs"],
+      licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       files: ~w(lib mix.exs README.md LICENSE .formatter.exs)
     ]
