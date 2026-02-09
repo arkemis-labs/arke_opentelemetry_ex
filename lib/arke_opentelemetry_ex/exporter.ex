@@ -25,6 +25,9 @@ defmodule ArkeOpentelemetryEx.Exporter do
   end
 
   defp init_otel_exporter(endpoints, opts) do
+    {:ok, _} = Application.ensure_all_started(:inets)
+    {:ok, _} = Application.ensure_all_started(:ssl)
+
     otel_opts = %{
       endpoints: endpoints,
       protocol: :http_protobuf,
