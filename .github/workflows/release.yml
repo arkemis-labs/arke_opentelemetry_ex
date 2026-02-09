@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.16"
+          otp-version: "26"
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Check version
+        run: |
+          VERSION="$(grep -m1 version mix.exs | cut -d'"' -f2)"
+          TAG="${{ github.event.release.tag_name }}"
+          TAG_VERSION="${TAG#v}"
+          if [ "$TAG_VERSION" != "$VERSION" ]; then
+            echo "Github release tag [${{ github.event.release.tag_name }}] (parsed: $TAG_VERSION) is different from mix.exs version [$VERSION]"
+            exit 1
+          fi
+      - name: Release & Publish
+        run: mix hex.publish --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
