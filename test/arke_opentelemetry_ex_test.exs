@@ -34,9 +34,9 @@ defmodule ArkeOpentelemetryExTest do
     end
   end
 
-  describe "setup/0 applies TENANT_ID to exporter headers" do
-    test "adds tenant header when TENANT_ID is set" do
-      System.put_env("TENANT_ID", "my_tenant")
+  describe "setup/0 applies OTEL_TENANT_ID to exporter headers" do
+    test "adds tenant header when OTEL_TENANT_ID is set" do
+      System.put_env("OTEL_TENANT_ID", "my_tenant")
       Application.delete_env(:opentelemetry_exporter, :otlp_headers)
 
       ArkeOpentelemetryEx.setup()
@@ -44,12 +44,12 @@ defmodule ArkeOpentelemetryExTest do
       headers = Application.get_env(:opentelemetry_exporter, :otlp_headers)
       assert {"tenant", "my_tenant"} in headers
     after
-      System.delete_env("TENANT_ID")
+      System.delete_env("OTEL_TENANT_ID")
       Application.delete_env(:opentelemetry_exporter, :otlp_headers)
     end
 
     test "merges tenant with existing headers" do
-      System.put_env("TENANT_ID", "my_tenant")
+      System.put_env("OTEL_TENANT_ID", "my_tenant")
       Application.put_env(:opentelemetry_exporter, :otlp_headers, [{"x-api-key", "secret"}])
 
       ArkeOpentelemetryEx.setup()
@@ -58,12 +58,12 @@ defmodule ArkeOpentelemetryExTest do
       assert {"x-api-key", "secret"} in headers
       assert {"tenant", "my_tenant"} in headers
     after
-      System.delete_env("TENANT_ID")
+      System.delete_env("OTEL_TENANT_ID")
       Application.delete_env(:opentelemetry_exporter, :otlp_headers)
     end
 
     test "does not override explicit tenant header" do
-      System.put_env("TENANT_ID", "from_env")
+      System.put_env("OTEL_TENANT_ID", "from_env")
       Application.put_env(:opentelemetry_exporter, :otlp_headers, [{"tenant", "explicit"}])
 
       ArkeOpentelemetryEx.setup()
@@ -72,12 +72,12 @@ defmodule ArkeOpentelemetryExTest do
       assert {"tenant", "explicit"} in headers
       refute {"tenant", "from_env"} in headers
     after
-      System.delete_env("TENANT_ID")
+      System.delete_env("OTEL_TENANT_ID")
       Application.delete_env(:opentelemetry_exporter, :otlp_headers)
     end
 
-    test "does nothing when TENANT_ID is not set" do
-      System.delete_env("TENANT_ID")
+    test "does nothing when OTEL_TENANT_ID is not set" do
+      System.delete_env("OTEL_TENANT_ID")
       Application.put_env(:opentelemetry_exporter, :otlp_headers, [{"x-key", "val"}])
 
       ArkeOpentelemetryEx.setup()
@@ -86,6 +86,126 @@ defmodule ArkeOpentelemetryExTest do
       assert headers == [{"x-key", "val"}]
     after
       Application.delete_env(:opentelemetry_exporter, :otlp_headers)
+    end
+  end
+
+  describe "setup/0 applies OTEL_EXPORTER_OTLP_AUTH_HEADER to exporter headers" do
+    test "adds authorization header when env var is set" do
+      System.put_env("OTEL_EXPORTER_OTLP_AUTH_HEADER", "Bearer token123")
+      Application.delete_env(:opentelemetry_exporter, :otlp_headers)
+
+      ArkeOpentelemetryEx.setup()
+
+      headers = Application.get_env(:opentelemetry_exporter, :otlp_headers)
+      assert {"authorization", "Bearer token123"} in headers
+    after
+      System.delete_env("OTEL_EXPORTER_OTLP_AUTH_HEADER")
+      Application.delete_env(:opentelemetry_exporter, :otlp_headers)
+    end
+
+    test "merges authorization with existing headers" do
+      System.put_env("OTEL_EXPORTER_OTLP_AUTH_HEADER", "Bearer token123")
+      Application.put_env(:opentelemetry_exporter, :otlp_headers, [{"x-api-key", "secret"}])
+
+      ArkeOpentelemetryEx.setup()
+
+      headers = Application.get_env(:opentelemetry_exporter, :otlp_headers)
+      assert {"x-api-key", "secret"} in headers
+      assert {"authorization", "Bearer token123"} in headers
+    after
+      System.delete_env("OTEL_EXPORTER_OTLP_AUTH_HEADER")
+      Application.delete_env(:opentelemetry_exporter, :otlp_headers)
+    end
+
+    test "does not override explicit authorization header" do
+      System.put_env("OTEL_EXPORTER_OTLP_AUTH_HEADER", "Bearer from_env")
+      Application.put_env(:opentelemetry_exporter, :otlp_headers, [{"authorization", "Bearer explicit"}])
+
+      ArkeOpentelemetryEx.setup()
+
+      headers = Application.get_env(:opentelemetry_exporter, :otlp_headers)
+      assert {"authorization", "Bearer explicit"} in headers
+      refute {"authorization", "Bearer from_env"} in headers
+    after
+      System.delete_env("OTEL_EXPORTER_OTLP_AUTH_HEADER")
+      Application.delete_env(:opentelemetry_exporter, :otlp_headers)
+    end
+
+    test "does nothing when env var is not set" do
+      System.delete_env("OTEL_EXPORTER_OTLP_AUTH_HEADER")
+      Application.put_env(:opentelemetry_exporter, :otlp_headers, [{"x-key", "val"}])
+
+      ArkeOpentelemetryEx.setup()
+
+      headers = Application.get_env(:opentelemetry_exporter, :otlp_headers)
+      refute Enum.any?(headers, fn {k, _} -> k == "authorization" end)
+    after
+      Application.delete_env(:opentelemetry_exporter, :otlp_headers)
+    end
+  end
+
+  describe "setup/0 applies OTEL_SERVICE_NAME to resource" do
+    test "sets service.name when no resource configured" do
+      System.put_env("OTEL_SERVICE_NAME", "my_service")
+      Application.delete_env(:opentelemetry, :resource)
+
+      ArkeOpentelemetryEx.setup()
+
+      resource = Application.get_env(:opentelemetry, :resource)
+      assert %{service: %{name: "my_service"}} = resource
+    after
+      System.delete_env("OTEL_SERVICE_NAME")
+      Application.delete_env(:opentelemetry, :resource)
+    end
+
+    test "merges with existing resource config" do
+      System.put_env("OTEL_SERVICE_NAME", "my_service")
+      Application.put_env(:opentelemetry, :resource, %{deployment: %{environment: "prod"}})
+
+      ArkeOpentelemetryEx.setup()
+
+      resource = Application.get_env(:opentelemetry, :resource)
+      assert %{service: %{name: "my_service"}, deployment: %{environment: "prod"}} = resource
+    after
+      System.delete_env("OTEL_SERVICE_NAME")
+      Application.delete_env(:opentelemetry, :resource)
+    end
+
+    test "does not override explicit service.name" do
+      System.put_env("OTEL_SERVICE_NAME", "from_env")
+      Application.put_env(:opentelemetry, :resource, %{service: %{name: "explicit"}})
+
+      ArkeOpentelemetryEx.setup()
+
+      resource = Application.get_env(:opentelemetry, :resource)
+      assert resource.service.name == "explicit"
+    after
+      System.delete_env("OTEL_SERVICE_NAME")
+      Application.delete_env(:opentelemetry, :resource)
+    end
+
+    test "falls back to default when env var is not set" do
+      System.delete_env("OTEL_SERVICE_NAME")
+      Application.delete_env(:opentelemetry, :resource)
+
+      ArkeOpentelemetryEx.setup()
+
+      resource = Application.get_env(:opentelemetry, :resource)
+      assert %{service: %{name: "arke_backend"}} = resource
+    after
+      Application.delete_env(:opentelemetry, :resource)
+    end
+
+    test "does not override explicit service.name when env var is not set" do
+      System.delete_env("OTEL_SERVICE_NAME")
+      Application.put_env(:opentelemetry, :resource, %{service: %{name: "existing"}})
+
+      ArkeOpentelemetryEx.setup()
+
+      resource = Application.get_env(:opentelemetry, :resource)
+      assert resource.service.name == "existing"
+    after
+      Application.delete_env(:opentelemetry, :resource)
     end
   end
 

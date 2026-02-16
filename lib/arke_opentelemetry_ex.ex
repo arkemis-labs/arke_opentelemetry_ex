@@ -117,18 +117,62 @@ defmodule ArkeOpentelemetryEx do
       Application.put_env(:opentelemetry_exporter, :otlp_protocol, :grpc, persistent: true)
     end
 
-    if tenant = System.get_env("TENANT_ID") do
-      existing = Application.get_env(:opentelemetry_exporter, :otlp_headers, [])
-      headers = merge_header(existing, {"tenant", tenant})
+    existing = Application.get_env(:opentelemetry_exporter, :otlp_headers, [])
+    headers = resolve_default_headers(existing)
+
+    if headers != existing do
       Application.put_env(:opentelemetry_exporter, :otlp_headers, headers, persistent: true)
+    end
+
+    existing_resource = Application.get_env(:opentelemetry, :resource)
+    resource = resolve_default_resource(existing_resource)
+
+    if resource != (existing_resource || %{}) do
+      Application.put_env(:opentelemetry, :resource, resource, persistent: true)
     end
   end
 
-  defp merge_header(headers, {key, _value} = header) do
-    case List.keyfind(headers, key, 0) do
-      nil -> headers ++ [header]
-      _ -> headers
-    end
+  @default_headers [
+    {"tenant", "OTEL_TENANT_ID"},
+    {"authorization", "OTEL_EXPORTER_OTLP_AUTH_HEADER"}
+  ]
+
+  @doc false
+  def resolve_default_headers(headers) when is_list(headers) do
+    Enum.reduce(@default_headers, headers, fn {header_name, env_var}, acc ->
+      case System.get_env(env_var) do
+        nil -> acc
+        value ->
+          case List.keyfind(acc, header_name, 0) do
+            nil -> acc ++ [{header_name, value}]
+            _ -> acc
+          end
+      end
+    end)
+  end
+
+  @default_resource [
+    {[:service, :name], "OTEL_SERVICE_NAME", "arke_backend"}
+  ]
+
+  @doc false
+  def resolve_default_resource(resource) do
+    resource = resource || %{}
+
+    Enum.reduce(@default_resource, resource, fn {key_path, env_var, default}, acc ->
+      if get_in(acc, key_path) do
+        acc
+      else
+        value = System.get_env(env_var) || default
+        put_in_path(acc, key_path, value)
+      end
+    end)
+  end
+
+  defp put_in_path(map, [key], value), do: Map.put(map, key, value)
+  defp put_in_path(map, [key | rest], value) do
+    child = Map.get(map, key, %{})
+    Map.put(map, key, put_in_path(child, rest, value))
   end
 
   defp attach_instrumentations do

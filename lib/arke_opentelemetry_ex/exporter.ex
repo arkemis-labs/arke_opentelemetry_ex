@@ -48,25 +48,16 @@ defmodule ArkeOpentelemetryEx.Exporter do
   end
 
   defp get_otel_resource do
-    case Application.get_env(:opentelemetry, :resource) do
-      nil -> %{}
-      config -> config |> :otel_resource_app_env.parse() |> Map.new()
-    end
+    Application.get_env(:opentelemetry, :resource)
+    |> ArkeOpentelemetryEx.resolve_default_resource()
+    |> :otel_resource_app_env.parse()
+    |> Map.new()
   end
 
   defp resolve_headers(opts) do
-    headers = Keyword.get(opts, :headers) || []
-
-    case System.get_env("TENANT_ID") do
-      nil ->
-        headers
-
-      tenant ->
-        case List.keyfind(headers, "tenant", 0) do
-          nil -> headers ++ [{"tenant", tenant}]
-          _ -> headers
-        end
-    end
+    opts
+    |> Keyword.get(:headers, [])
+    |> ArkeOpentelemetryEx.resolve_default_headers()
   end
 
   defp export_http(request, otel_state) do

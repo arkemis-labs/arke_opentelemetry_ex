@@ -90,15 +90,35 @@ config :logger, ArkeOpentelemetryEx.LoggerBackend,
 
 Explicit config always takes precedence over environment variables.
 
-## Multi-tenancy
+## Default Headers
 
-If `TENANT_ID` is set, the package automatically adds a `{"tenant", value}` header to both trace and log exports:
+The package automatically resolves headers from environment variables and attaches them to both trace and log exports. Explicit config always takes precedence.
+
+| Header | Env Var | Description |
+|---|---|---|
+| `tenant` | `OTEL_TENANT_ID` | Multi-tenancy identifier |
+| `authorization` | `OTEL_EXPORTER_OTLP_AUTH_HEADER` | Authorization header (e.g. `Bearer <token>`) |
 
 ```
-TENANT_ID=tenant_id_value
+OTEL_TENANT_ID=my_tenant
+OTEL_EXPORTER_OTLP_AUTH_HEADER=Bearer my_token
 ```
 
-The header is merged with any existing headers and won't override an explicit `tenant` header.
+Headers are merged with any existing headers configured via `:otlp_headers` or `:headers` and won't override already-present keys.
+
+## Default Resource
+
+The package resolves resource attributes from environment variables, falling back to built-in defaults. Explicit `config :opentelemetry, :resource` takes precedence.
+
+| Resource Attribute | Env Var | Default |
+|---|---|---|
+| `service.name` | `OTEL_SERVICE_NAME` | `"arke_backend"` |
+
+```
+OTEL_SERVICE_NAME=my_service
+```
+
+This means you don't need to set `config :opentelemetry, resource: %{service: %{name: "..."}}` manually — just set the env var or rely on the default.
 
 ## Disabling
 
